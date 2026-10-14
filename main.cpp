@@ -1193,30 +1193,62 @@ private:
 
             if (ImGui::Checkbox("Dynamic", &selectedEntity.isDynamic)) {
                 if (selectedEntity.rigidBody != nullptr) {
+                    // Preserve the solver-owned pose exactly. Destroying the
+                    // old body removes its broad-phase proxy and all cached
+                    // contact manifolds before its replacement is created.
+                    const reactphysics3d::Transform currentTransform =
+                        selectedEntity.rigidBody->getTransform();
+
+                    physicsWorld_->destroyRigidBody(selectedEntity.rigidBody);
+                    selectedEntity.rigidBody = nullptr;
+                    selectedEntity.collider = nullptr;
+
+                    // CollisionShape lifetime is managed by PhysicsCommon,
+                    // independently of the body/collider that used it.
+                    if (selectedEntity.collisionShape != nullptr) {
+                        physicsCommon_.destroyBoxShape(
+                            selectedEntity.collisionShape);
+                        selectedEntity.collisionShape = nullptr;
+                    }
+
+                    selectedEntity.collisionShape =
+                        physicsCommon_.createBoxShape(
+                            makeColliderHalfExtents(selectedEntity.scale));
+                    selectedEntity.rigidBody =
+                        physicsWorld_->createRigidBody(currentTransform);
+                    selectedEntity.collider =
+                        selectedEntity.rigidBody->addCollider(
+                            selectedEntity.collisionShape,
+                            reactphysics3d::Transform::identity());
+
+                    // Reapply per-entity filtering because the old collider
+                    // (and all of its settings) was destroyed with the body.
+                    selectedEntity.collider->setCollisionCategoryBits(
+                        selectedEntity.collisionCategory);
+                    selectedEntity.collider->setCollideWithMaskBits(
+                        selectedEntity.collisionMask);
+
                     if (selectedEntity.isDynamic) {
-                        // Switching a body that is already touching another
-                        // collider requires valid inverse mass and inertia
-                        // before the next solver pass.
                         selectedEntity.rigidBody->setType(
                             reactphysics3d::BodyType::DYNAMIC);
 
                         constexpr reactphysics3d::decimal mass = 1.0F;
                         selectedEntity.rigidBody->setMass(mass);
 
-                        if (selectedEntity.rigidBody->getNbColliders() > 0) {
-                            reactphysics3d::Collider* collider =
-                                selectedEntity.rigidBody->getCollider(0);
-                            const reactphysics3d::Vector3 inertia =
-                                collider->getCollisionShape()
-                                    ->getLocalInertiaTensor(mass);
-                            selectedEntity.rigidBody->setLocalInertiaTensor(inertia);
-                        }
+                        // In ReactPhysics3D 0.10.2 the inertia calculation is
+                        // exposed by CollisionShape rather than Collider.
+                        const reactphysics3d::Vector3 inertia =
+                            selectedEntity.collider->getCollisionShape()
+                                ->getLocalInertiaTensor(mass);
+                        selectedEntity.rigidBody->setLocalInertiaTensor(inertia);
 
                         selectedEntity.rigidBody->setIsActive(true);
                         selectedEntity.rigidBody->setIsSleeping(false);
                     } else {
                         selectedEntity.rigidBody->setType(
                             reactphysics3d::BodyType::STATIC);
+                        selectedEntity.rigidBody->setIsActive(
+                            selectedEntity.isActive);
                     }
                 }
             }
