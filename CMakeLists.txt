@@ -1,6 +1,13 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.14)
 
-project(ps2_style_engine LANGUAGES C CXX)
+# GLAD is generated as C while the engine itself is C++17.
+project(PotatoEngine LANGUAGES C CXX)
+
+# CMake 3.24+ warns unless downloaded archives receive extraction-time
+# timestamps. Keep the file compatible with the requested CMake 3.14 minimum.
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,69 +15,69 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
-# Keep GLFW's build small: the engine only needs the library.
+# Do not spend time building GLFW documentation, tests, or sample programs.
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-set(GLM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw.git
-    GIT_TAG 3.4
-    GIT_SHALLOW TRUE
+    URL https://github.com/glfw/glfw/archive/refs/tags/3.4.zip
 )
 
-# glad 0.1.x ships a compact, generated OpenGL loader and a CMake target.
-FetchContent_Declare(
-    glad
-    GIT_REPOSITORY https://github.com/Dav1dde/glad.git
-    GIT_TAG v0.1.36
-    GIT_SHALLOW TRUE
-)
-
+# Dear ImGui deliberately has no required upstream CMake target. Its source
+# files are added directly to PotatoEngine below.
 FetchContent_Declare(
     imgui
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.91.9b
-    GIT_SHALLOW TRUE
+    URL https://github.com/ocornut/imgui/archive/refs/tags/v1.91.9b.zip
 )
 
+# The current main.cpp uses GLM for model/view/projection matrices, so fetch
+# this header-only dependency too.
+set(GLM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     glm
-    GIT_REPOSITORY https://github.com/g-truc/glm.git
-    GIT_TAG 1.0.1
-    GIT_SHALLOW TRUE
+    URL https://github.com/g-truc/glm/archive/refs/tags/1.0.1.zip
 )
 
-FetchContent_MakeAvailable(glfw glad imgui glm)
+FetchContent_MakeAvailable(glfw imgui glm)
 
+# Locate the operating system's standard OpenGL library (opengl32.lib on
+# Windows, for example).
 find_package(OpenGL REQUIRED)
 
-# Dear ImGui intentionally has no mandatory upstream build system. Build only
-# its core plus the GLFW/OpenGL 3 backends used by this executable.
-add_library(imgui STATIC
+add_executable(PotatoEngine
+    main.cpp
+
+    # GLAD 0.1.x files generated for OpenGL 3.1 Core.
+    glad/src/glad.c
+
+    # Dear ImGui core.
     ${imgui_SOURCE_DIR}/imgui.cpp
     ${imgui_SOURCE_DIR}/imgui_draw.cpp
     ${imgui_SOURCE_DIR}/imgui_tables.cpp
     ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+
+    # Dear ImGui platform and renderer backends.
     ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
-target_include_directories(imgui PUBLIC
+target_include_directories(PotatoEngine PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/glad/include
     ${imgui_SOURCE_DIR}
     ${imgui_SOURCE_DIR}/backends
 )
 
-target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
-
-add_executable(ps2_engine main.cpp)
-target_link_libraries(ps2_engine PRIVATE glad glfw imgui glm::glm OpenGL::GL)
+target_link_libraries(PotatoEngine PRIVATE
+    glfw
+    glm::glm
+    OpenGL::GL
+)
 
 if(MSVC)
-    target_compile_options(ps2_engine PRIVATE /W4 /permissive-)
+    target_compile_options(PotatoEngine PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(ps2_engine PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(PotatoEngine PRIVATE -Wall -Wextra -Wpedantic)
 endif()

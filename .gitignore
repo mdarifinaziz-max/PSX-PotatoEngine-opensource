@@ -1,0 +1,21 @@
+# CMake and compiler output
+/build/
+/build-*/
+/out/
+/cmake-build-*/
+
+# Visual Studio local files
+/.vs/
+*.suo
+*.user
+*.VC.db
+
+# Dear ImGui local window/layout state
+/imgui.ini
+
+# Compiled binaries and debug databases
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
