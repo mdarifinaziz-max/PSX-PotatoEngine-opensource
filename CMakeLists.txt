@@ -52,7 +52,8 @@ FetchContent_Declare(
 # files are added directly to PotatoEngine below.
 FetchContent_Declare(
     imgui
-    URL https://github.com/ocornut/imgui/archive/refs/tags/v1.91.9b.zip
+    # Docking is maintained as an official parallel release tag.
+    URL https://github.com/ocornut/imgui/archive/refs/tags/v1.91.9b-docking.zip
 )
 
 # The current main.cpp uses GLM for model/view/projection matrices, so fetch
